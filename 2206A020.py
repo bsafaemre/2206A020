@@ -1,6 +1,8 @@
 import sys
 import numpy as np
 import pandas as pd
+import umap
+import plotly.express as px
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                            QHBoxLayout, QTabWidget, QPushButton, QLabel, 
                            QComboBox, QFileDialog, QSpinBox, QDoubleSpinBox,
@@ -61,12 +63,20 @@ class MLCourseGUI(QMainWindow):
             # Load selected dataset
             if dataset_name == "Iris Dataset":
                 data = datasets.load_iris()
+                x = data.data
+                y = data.target
             elif dataset_name == "Breast Cancer Dataset":
                 data = datasets.load_breast_cancer()
+                x = data.data
+                y = data.target
             elif dataset_name == "Digits Dataset":
                 data = datasets.load_digits()
+                x = data.data
+                y = data.target
             elif dataset_name == "Boston Housing Dataset":
                 data = datasets.load_boston()
+                x = data.data
+                y = data.target
             elif dataset_name == "MNIST Dataset":
                 (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
                 self.X_train, self.X_test = X_train, X_test
@@ -75,11 +85,24 @@ class MLCourseGUI(QMainWindow):
                 return
             
             # Split data
-            test_size = self.split_spin.value()
-            self.X_train, self.X_test, self.y_train, self.y_test = \
-                model_selection.train_test_split(data.data, data.target, 
-                                              test_size=test_size, 
-                                              random_state=42)
+            split_option = self.split_combo.currentText()
+
+            if split_option == "80-20 (Train-Test)":
+                self.X_train, self.X_test, self.y_train, self.y_test = \
+                    model_selection.train_test_split(x, y, test_size=0.2, random_state=42)
+
+            elif split_option == "70-15-15 (Train-Val-Test)":
+                X_temp, self.X_test, y_temp, self.y_test = \
+                    model_selection.train_test_split(x, y, test_size=0.15, random_state=42)
+                self.x_train, self.X_val, self.y_train, self.y_val = \
+                    model_selection.train_test_split(X_temp, y_temp, test_size=0.1765, random_state=42)  # 0.15 / 0.85 ≈ 0.1765
+
+            elif split_option == "60-20-20 (Train-Val-Test)":
+                X_temp, self.X_test, y_temp, self.y_test = \
+                    model_selection.train_test_split(x, y, test_size=0.20, random_state=42)
+                self.X_train, self.X_val, self.y_train, self.y_val = \
+                    model_selection.train_test_split(X_temp, y_temp, test_size=0.25, random_state=42)  # 0.20 / 0.80 = 0.25
+
             
             # Apply scaling if selected
             self.apply_scaling()
@@ -247,14 +270,40 @@ class MLCourseGUI(QMainWindow):
         data_layout.addWidget(self.load_btn)
         data_layout.addWidget(QLabel("Scaling:"))
         data_layout.addWidget(self.scaling_combo)
-        data_layout.addWidget(QLabel("Test Split:"))
-        data_layout.addWidget(self.split_spin)
+        
+        # Train/Val/Test split
+        self.split_combo = QComboBox()
+        self.split_combo.addItems([
+            "80-20 (Train-Test)",
+            "70-15-15 (Train-Val-Test)",
+            "60-20-20 (Train-Val-Test)"
+        ])
+        data_layout.addWidget(QLabel("Split:"))
+        data_layout.addWidget(self.split_combo)
+
+        self.kfold_checkbox = QCheckBox("Use k-Fold CV")
+        data_layout.addWidget(self.kfold_checkbox)
+
 
         data_layout.addWidget(QLabel("Missing Data:"))
         data_layout.addWidget(self.missing_combo)
         
         data_group.setLayout(data_layout)
         self.layout.addWidget(data_group)
+
+        # k-Fold 
+        self.kfold_spin = QSpinBox()
+        self.kfold_spin.setRange(2, 20)
+        self.kfold_spin.setValue(5)
+
+        data_layout.addWidget(QLabel("k-Fold:"))
+        data_layout.addWidget(self.kfold_spin)
+
+        # Plotly toggle
+        self.use_plotly_checkbox = QCheckBox("Use Plotly for Visuals")
+        data_layout.addWidget(self.use_plotly_checkbox)
+
+
     
     def create_tabs(self):
         """Create tabs for different ML topics"""
@@ -411,8 +460,54 @@ class MLCourseGUI(QMainWindow):
         
         pca_group.setLayout(pca_layout)
         layout.addWidget(pca_group, 0, 1)
+
+        ## LDA section
+
+        lda_group = QGroupBox("Linear Discriminant Analysis")
+        lda_layout = QVBoxLayout()
+
+        lda_params = self.create_algorithm_group(
+            "LDA Parameters",
+            {"n_components": "int"}
+        )
+        lda_layout.addWidget(lda_params)
+
+        lda_group.setLayout(lda_layout)
+        layout.addWidget(lda_group, 1, 0)
+
+        # t-SNE section
+
+        tsne_group = QGroupBox("t-SNE")
+        tsne_layout = QVBoxLayout()
+
+        tsne_params = self.create_algorithm_group(
+            "t-SNE Parameters",
+            {"n_components": "int",
+             "perplexity": "double"}
+        )
+        tsne_layout.addWidget(tsne_params)
+
+        tsne_group.setLayout(tsne_layout)
+        layout.addWidget(tsne_group, 1, 1)
+
+        # UMAP section
+
+        umap_group = QGroupBox("UMAP")
+        umap_layout = QVBoxLayout()
+
+        umap_params = self.create_algorithm_group(
+            "UMAP Parameters",
+            {"n_components": "int",
+             "n_neighbors": "int"}
+        )
+        umap_layout.addWidget(umap_params)
+
+        umap_group.setLayout(umap_layout)
+        layout.addWidget(umap_group, 2, 0)
+
         
         return widget
+    
     
     def create_rl_tab(self):
         """Create the reinforcement learning tab"""
@@ -1018,11 +1113,234 @@ class MLCourseGUI(QMainWindow):
                 raise ValueError("Invalid priors input. Please enter a list of floats.")
 
             model = GaussianNB(var_smoothing=var_smoothing, priors=priors)
-            return model, None                
+            return model, None
+
+
+        #Dimensionality Reduction Tab
+
+        elif model_name == "PCA Parameters":
+            n_components = param_widgets["n_components"].value()
+            whiten = param_widgets["whiten"].isChecked()
+
+            from sklearn.decomposition import PCA
+            model = PCA(n_components=n_components, whiten=whiten)
+            return model, None
+
+        elif model_name == "LDA Parameters":
+            n_components = param_widgets["n_components"].value()
+
+            from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+            model = LinearDiscriminantAnalysis(n_components=n_components)
+            return model, None
+        
+        elif model_name == "K-Means Parameters":
+            n_clusters = param_widgets["n_clusters"].value()
+            max_iter = param_widgets["max_iter"].value()
+            n_init = param_widgets["n_init"].value()
+
+            from sklearn.cluster import KMeans
+            model = KMeans(n_clusters=n_clusters, max_iter=max_iter, n_init=n_init)
+            return model, None
+        
+        elif model_name == "t-SNE Parameters":
+            n_components = param_widgets["n_components"].value()
+            perplexity = param_widgets["perplexity"].value()
+
+            from sklearn.manifold import TSNE
+            model = TSNE(n_components=n_components, perplexity=perplexity)
+            return model, None
+        
+        elif model_name == "UMAP Parameters":
+            n_components = param_widgets["n_components"].value()
+            n_neighbors = param_widgets["n_neighbors"].value()
+
+            model = umap.UMAP(n_components=n_components, n_neighbors=n_neighbors)
+            return model, None
+        
             
         
     def train_model(self, model_name, param_widgets):
+        
         try:
+
+            if model_name == "PCA Parameters":              
+                try:
+                    model, _ = self.read_params(model_name, param_widgets)
+                    model.fit(self.X_train)
+
+                    variance_ratios = model.explained_variance_ratio_
+
+                    self.figure.clear()
+                    ax = self.figure.add_subplot(111)
+                    ax.plot(np.cumsum(variance_ratios), marker='o')
+                    ax.set_title("Explained Variance by PCA Components")
+                    ax.set_xlabel("Number of Components")
+                    ax.set_ylabel("Cumulative Explained Variance")
+                    ax.grid(True)
+                    self.canvas.draw()
+
+                    self.status_bar.showMessage(f"PCA applied with {model.n_components} components.")
+
+                except Exception as e:
+                    self.show_error(f"Error applying PCA: {str(e)}")
+                return
+            
+
+            if model_name == "LDA Parameters":
+                try:
+                    model, _ = self.read_params(model_name, param_widgets)
+                    X_lda = model.fit_transform(self.X_train, self.y_train)
+
+                   
+                    self.figure.clear()
+                    ax = self.figure.add_subplot(111)
+                    scatter = ax.scatter(X_lda[:, 0], np.zeros_like(X_lda[:, 0]), 
+                                        c=self.y_train, cmap='viridis', alpha=0.8)
+                    ax.set_title("LDA Projection (1D or 2D)")
+                    self.figure.colorbar(scatter)
+                    self.canvas.draw()
+
+
+                    from sklearn.metrics import accuracy_score
+                    y_pred = model.predict(self.X_test)
+                    accuracy = accuracy_score(self.y_test, y_pred)
+                    self.metrics_text.setText(f"Classification Accuracy after LDA: {accuracy:.4f}")
+
+                    self.status_bar.showMessage(f"LDA applied with {model.n_components} components.")
+
+                except Exception as e:
+                    self.show_error(f"Error applying LDA: {str(e)}")
+                return
+            
+            
+            if model_name == "K-Means Parameters":
+                try:
+                    model, _ = self.read_params(model_name, param_widgets)
+                    model.fit(self.X_train)
+                    y_pred = model.predict(self.X_test)
+
+                    # Elbow Method 
+                    inertias = []
+                    k_range = range(1, 11)
+                    for k in k_range:
+                        km = KMeans(n_clusters=k, random_state=42, n_init=10)
+                        km.fit(self.X_train)
+                        inertias.append(km.inertia_)
+
+                    self.figure.clear()
+                    ax1 = self.figure.add_subplot(211)
+                    ax1.plot(k_range, inertias, marker='o')
+                    ax1.set_title("Elbow Method: Inertia vs. k")
+                    ax1.set_xlabel("Number of Clusters (k)")
+                    ax1.set_ylabel("Inertia")
+                    ax1.grid(True)
+
+                    # Silhouette Score
+                    from sklearn.metrics import silhouette_score
+                    silhouette = silhouette_score(self.X_test, y_pred)
+
+                    ax2 = self.figure.add_subplot(212)
+                    scatter = ax2.scatter(self.X_test[:, 0], self.X_test[:, 1], c=y_pred, cmap='viridis')
+                    ax2.set_title("k-Means Clustering Result")
+                    self.figure.colorbar(scatter)
+
+                    self.figure.tight_layout()
+                    self.canvas.draw()
+
+                    self.metrics_text.setText(f"Silhouette Score: {silhouette:.4f}")
+                    self.status_bar.showMessage(f"k-Means trained with k={model.n_clusters}, silhouette={silhouette:.4f}")
+
+                except Exception as e:
+                    self.show_error(f"Error training k-Means: {str(e)}")
+                return
+            
+            if model_name == "t-SNE Parameters":
+                try:
+                    model, _ = self.read_params(model_name, param_widgets)
+                    X_tsne = model.fit_transform(self.X_test)
+
+                    if self.use_plotly_checkbox.isChecked():
+                        df = pd.DataFrame(X_tsne, columns=["Dim 1", "Dim 2"] if X_tsne.shape[1] == 2 else ["Dim 1", "Dim 2", "Dim 3"])
+                        df["Label"] = self.y_test.astype(str)
+
+                        if X_tsne.shape[1] == 3:
+                            fig = px.scatter_3d(df, x="Dim 1", y="Dim 2", z="Dim 3", color="Label",
+                                                title="t-SNE Projection (3D)")
+                        else:
+                            fig = px.scatter(df, x="Dim 1", y="Dim 2", color="Label",
+                                            title="t-SNE Projection (2D)")
+                        fig.show()
+
+                    else:
+                        self.figure.clear()
+                        if X_tsne.shape[1] == 2:
+                            ax = self.figure.add_subplot(111)
+                            scatter = ax.scatter(X_tsne[:, 0], X_tsne[:, 1],
+                                                c=self.y_test, cmap='viridis', alpha=0.8)
+                            ax.set_title("t-SNE Projection (2D)")
+                            self.figure.colorbar(scatter)
+
+                        elif X_tsne.shape[1] == 3:
+                            from mpl_toolkits.mplot3d import Axes3D
+                            ax = self.figure.add_subplot(111, projection='3d')
+                            scatter = ax.scatter(X_tsne[:, 0], X_tsne[:, 1], X_tsne[:, 2],
+                                                c=self.y_test, cmap='viridis', alpha=0.8)
+                            ax.set_title("t-SNE Projection (3D)")
+
+                        self.canvas.draw()
+
+                    self.status_bar.showMessage("t-SNE projection complete.")
+                    self.metrics_text.setText("t-SNE projection completed successfully.")
+
+                except Exception as e:
+                    self.show_error(f"Error applying t-SNE: {str(e)}")
+                return
+
+            
+            if model_name == "UMAP Parameters":
+                try:
+                    model, _ = self.read_params(model_name, param_widgets)
+                    X_umap = model.fit_transform(self.X_test)
+
+                    if self.use_plotly_checkbox.isChecked():
+                        df = pd.DataFrame(X_umap, columns=["Dim 1", "Dim 2"] if X_umap.shape[1] == 2 else ["Dim 1", "Dim 2", "Dim 3"])
+                        df["Label"] = self.y_test.astype(str)
+
+                        if X_umap.shape[1] == 3:
+                            fig = px.scatter_3d(df, x="Dim 1", y="Dim 2", z="Dim 3", color="Label",
+                                                title="UMAP Projection (3D)")
+                        else:
+                            fig = px.scatter(df, x="Dim 1", y="Dim 2", color="Label",
+                                            title="UMAP Projection (2D)")
+                        fig.show()
+
+                    else:
+                        self.figure.clear()
+                        if X_umap.shape[1] == 2:
+                            ax = self.figure.add_subplot(111)
+                            scatter = ax.scatter(X_umap[:, 0], X_umap[:, 1],
+                                                c=self.y_test, cmap='viridis', alpha=0.8)
+                            ax.set_title("UMAP Projection (2D)")
+                            self.figure.colorbar(scatter)
+
+                        elif X_umap.shape[1] == 3:
+                            from mpl_toolkits.mplot3d import Axes3D
+                            ax = self.figure.add_subplot(111, projection='3d')
+                            scatter = ax.scatter(X_umap[:, 0], X_umap[:, 1], X_umap[:, 2],
+                                                c=self.y_test, cmap='viridis', alpha=0.8)
+                            ax.set_title("UMAP Projection (3D)")
+
+                        self.canvas.draw()
+
+                    self.status_bar.showMessage("UMAP projection complete.")
+                    self.metrics_text.setText("UMAP is unsupervised. No accuracy metric.")
+
+                except Exception as e:
+                    self.show_error(f"Error applying UMAP: {str(e)}")
+                return
+
+
+
             
             # Check if model is compatible with target type(at first, did not realise base gui already does this)
             
@@ -1048,6 +1366,35 @@ class MLCourseGUI(QMainWindow):
             # train the model
 
             model, loss_function = self.read_params(model_name, param_widgets)
+
+            if self.kfold_checkbox.isChecked():
+                from sklearn.model_selection import cross_val_score
+                k = self.kfold_spin.value()
+
+                if loss_function in ["MSE", "MAE"]:
+                    from sklearn.metrics import make_scorer, mean_squared_error, mean_absolute_error
+                    if loss_function == "MSE":
+                        scorer = make_scorer(mean_squared_error)
+                    else:
+                        scorer = make_scorer(mean_absolute_error)
+
+                else:
+                    scorer = "accuracy"
+
+                scores = cross_val_score(model, self.X_train, self.y_train, cv=k, scoring=scorer)
+
+                mean_score = np.mean(scores)
+                std_score = np.std(scores)
+
+                self.metrics_text.setText(
+                    f"k-Fold Cross-Validation ({k}-fold)\n"
+                    f"Mean Score: {mean_score:.4f}\n"
+                    f"Std Deviation: {std_score:.4f}"
+                )
+                self.status_bar.showMessage(f"k-Fold CV complete. Mean={mean_score:.4f}, Std={std_score:.4f}")
+                return
+
+
 
             model.fit(self.X_train, self.y_train)
             y_pred = model.predict(self.X_test)
@@ -1100,7 +1447,6 @@ class MLCourseGUI(QMainWindow):
 
         except Exception as e:
             self.show_error(f"Error training {model_name} model: {str(e)}")
-
 
 
 def main():
