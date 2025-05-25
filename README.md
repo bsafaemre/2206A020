@@ -73,6 +73,66 @@ New tab includes support for common dimensionality reduction techniques:
 
 ---
 
+---
+
+## 🤖 Deep Learning Module (NEW)
+
+A new **"Deep Learning"** tab has been added to the GUI. Users can now build and train deep neural networks without writing code.
+
+- **Supported Architectures**:
+  - Multi-Layer Perceptron (MLP)
+  - Convolutional Neural Networks (CNN)
+  - Recurrent Neural Networks (LSTM, GRU)
+  - Pretrained Models: VGG16, ResNet50, MobileNetV2
+
+- **Custom Layer Configuration**:
+  - Add layers dynamically (Dense, Conv2D, Dropout, MaxPooling2D, Flatten, LSTM, GRU)
+  - Support for activation functions, kernel sizes, L2 regularization, and return_sequences (for RNNs)
+
+- **Training Options**:
+  - Optimizer selection: Adam, SGD, RMSprop
+  - Learning rate scheduler: Step Decay, Exponential Decay
+  - EarlyStopping support with patience value
+  - Image augmentation: Rotation, Flip, Zoom, Brightness
+  - Save/Load Keras `.h5` model files
+
+---
+
+## 🎮 GAN Training Support (NEW)
+
+A simple **Generative Adversarial Network (GAN)** module is added under the "GAN" tab.
+
+- Generator and Discriminator are built-in
+- Dataset: MNIST
+- Adjustable `epochs` and `batch size`
+- Shows generated sample image every 10 epochs
+- Logs GAN training progress live
+
+---
+
+## 📋 Real-Time Training Logs (NEW)
+
+- A **live log panel** has been added next to the canvas.
+- During CNN, RNN, or GAN training, real-time feedback is shown (loss, accuracy, gradients, etc.).
+- Helps track training progress without using the console.
+
+---
+
+## ⚙️ Optimizer and Regularization Enhancements (NEW)
+
+New configurations added to improve training control:
+
+- Optimizer selection:
+  - Adam
+  - SGD
+  - RMSprop
+
+- Regularization support:
+  - L2 kernel regularization for Dense, Conv2D, LSTM, GRU
+  - Dropout layers (with adjustable rate)
+
+
+
 ## 👨‍🎓 Student Info
 
 - **Name**: Safa Emre Beytekin  
